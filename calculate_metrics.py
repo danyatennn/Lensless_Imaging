@@ -26,7 +26,7 @@ def load_image(path, shape=None):
     if shape is not None:
         image = image.resize((shape[1], shape[0]), Image.BICUBIC)
     array = np.asarray(image).astype(np.float32) / 255.0
-    return torch.from_numpy(array).permute(2, 0, 1).unsqueeze(0)
+    return torch.from_numpy(array).permute(2, 0, 1).unsqueeze(0).contiguous()
 
 
 def resolve_ground_truth_dir(path):
@@ -75,12 +75,12 @@ def main():
         if not gt_path.exists():
             continue
 
-        rec = load_image(rec_path).to(device)
-        gt = load_image(gt_path, shape=rec.shape[-2:]).to(device)
+        rec = load_image(rec_path).to(device).contiguous()
+        gt = load_image(gt_path, shape=rec.shape[-2:]).to(device).contiguous()
 
         scores["PSNR"].append(psnr(rec, gt).item())
         scores["SSIM"].append(ssim(rec, gt).item())
-        scores["MSE"].append(mse(rec, gt).item())
+        scores["MSE"].append(torch.mean((rec - gt) ** 2).item())
         scores["LPIPS"].append(perceptual(rec * 2 - 1, gt * 2 - 1).mean().item())
 
     n = len(scores["PSNR"])
