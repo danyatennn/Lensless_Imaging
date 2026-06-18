@@ -1,0 +1,7 @@
+train:
+  _target_: src.datasets.DigiCamMirflickr
+  part: train
+test:
+  _target_: src.datasets.DigiCamMirflickr
+  part: test
+  limit: 500
