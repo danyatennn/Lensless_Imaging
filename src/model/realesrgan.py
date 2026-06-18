@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch.utils import checkpoint as cp
 
 DEFAULT_WEIGHTS_URL = (
     "https://github.com/xinntao/Real-ESRGAN/releases/download/"
