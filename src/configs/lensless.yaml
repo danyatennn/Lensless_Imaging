@@ -1,0 +1,34 @@
+defaults:
+  - model: modular_pre_post
+  - writer: cometml
+  - metrics: lensless
+  - datasets: digicam
+  - dataloader: lensless
+  - transforms: empty
+  - _self_
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1e-4
+  betas: [0.9, 0.999]
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.StepLR
+  gamma: 1.0
+  step_size: 100000
+loss_function:
+  _target_: src.loss.MSELPIPSLoss
+  mse_weight: 1.0
+  lpips_weight: 1.0
+trainer:
+  log_step: 50
+  n_epochs: 25
+  epoch_len: null
+  device_tensors: ["measurement", "psf", "gt"]
+  resume_from: null
+  device: auto
+  override: False
+  monitor: "max test_PSNR"
+  save_period: 2
+  early_stop: ${trainer.n_epochs}
+  save_dir: "saved"
+  seed: 1
+  max_grad_norm: 1.0
