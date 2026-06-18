@@ -1,5 +1,13 @@
-from src.model.baseline_model import BaselineModel
+from src.model.admm import UnrolledADMM
+from src.model.drunet import DRUNet
+from src.model.fista import FISTA
+from src.model.modular import ModularReconstruction
+from src.model.realesrgan import RealESRGAN
 
 __all__ = [
-    "BaselineModel",
+    "UnrolledADMM",
+    "FISTA",
+    "DRUNet",
+    "RealESRGAN",
+    "ModularReconstruction",
 ]

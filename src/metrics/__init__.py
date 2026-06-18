@@ -1,1 +1,6 @@
-from src.metrics.example import ExampleMetric
+from src.metrics.lensless import LenslessMetric, LPIPSMetric
+
+__all__ = [
+    "LenslessMetric",
+    "LPIPSMetric",
+]
