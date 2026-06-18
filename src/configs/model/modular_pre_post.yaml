@@ -1,0 +1,19 @@
+_target_: src.model.ModularReconstruction
+normalize: true
+camera_inversion:
+  _target_: src.model.UnrolledADMM
+  n_iters: 5
+  learnable: true
+  mu1: 1e-4
+  mu2: 1e-4
+  mu3: 1e-4
+  tau: 2e-4
+  pad_factor: 2
+pre_processor:
+  _target_: src.model.DRUNet
+  channels: [32, 64, 116, 128]
+  n_res_blocks: 4
+post_processor:
+  _target_: src.model.DRUNet
+  channels: [32, 64, 116, 128]
+  n_res_blocks: 4
