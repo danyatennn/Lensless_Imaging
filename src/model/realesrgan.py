@@ -62,7 +62,12 @@ class RRDBNet(nn.Module):
 
     def forward(self, x):
         feat = self.conv_first(x)
-        body_feat = self.conv_body(self.body(feat))
+        if self.training:
+            body_feat = self.conv_body(
+                cp.checkpoint_sequential(self.body, 23, feat, use_reentrant=False)
+            )
+        else:
+            body_feat = self.conv_body(self.body(feat))
         feat = feat + body_feat
         feat = self.lrelu(
             self.conv_up1(F.interpolate(feat, scale_factor=2, mode="nearest"))
