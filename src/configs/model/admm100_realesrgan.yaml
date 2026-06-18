@@ -1,0 +1,15 @@
+_target_: src.model.ModularReconstruction
+normalize: true
+camera_inversion:
+  _target_: src.model.UnrolledADMM
+  n_iters: 100
+  learnable: false
+  mu1: 1e-4
+  mu2: 1e-4
+  mu3: 1e-4
+  tau: 2e-4
+  pad_factor: 2
+post_processor:
+  _target_: src.model.RealESRGAN
+  pretrained: true
+  freeze: true
