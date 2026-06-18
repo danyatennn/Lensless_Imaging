@@ -1,18 +1,14 @@
+import numpy as np
 import torch
+from PIL import Image
 from tqdm.auto import tqdm
 
 from src.metrics.tracker import MetricTracker
 from src.trainer.base_trainer import BaseTrainer
+from src.utils.lensless import crop_roi
 
 
 class Inferencer(BaseTrainer):
-    """
-    Inferencer (Like Trainer but for Inference) class
-
-    The class is used to process data without
-    the need of optimizers, writers, etc.
-    Required to evaluate the model on the dataset, save predictions, etc.
-    """
 
     def __init__(
         self,
@@ -24,29 +20,8 @@ class Inferencer(BaseTrainer):
         metrics=None,
         batch_transforms=None,
         skip_model_load=False,
+        writer=None,
     ):
-        """
-        Initialize the Inferencer.
-
-        Args:
-            model (nn.Module): PyTorch model.
-            config (DictConfig): run config containing inferencer config.
-            device (str): device for tensors and model.
-            dataloaders (dict[DataLoader]): dataloaders for different
-                sets of data.
-            save_path (str): path to save model predictions and other
-                information.
-            metrics (dict): dict with the definition of metrics for
-                inference (metrics[inference]). Each metric is an instance
-                of src.metrics.BaseMetric.
-            batch_transforms (dict[nn.Module] | None): transforms that
-                should be applied on the whole batch. Depend on the
-                tensor name.
-            skip_model_load (bool): if False, require the user to set
-                pre-trained checkpoint path. Set this argument to True if
-                the model desirable weights are defined outside of the
-                Inferencer Class.
-        """
         assert (
             skip_model_load or config.inferencer.get("from_pretrained") is not None
         ), "Provide checkpoint or set skip_model_load=True"
@@ -58,15 +33,12 @@ class Inferencer(BaseTrainer):
 
         self.model = model
         self.batch_transforms = batch_transforms
+        self.writer = writer
 
-        # define dataloaders
         self.evaluation_dataloaders = {k: v for k, v in dataloaders.items()}
-
-        # path definition
 
         self.save_path = save_path
 
-        # define metrics
         self.metrics = metrics
         if self.metrics is not None:
             self.evaluation_metrics = MetricTracker(
@@ -77,17 +49,9 @@ class Inferencer(BaseTrainer):
             self.evaluation_metrics = None
 
         if not skip_model_load:
-            # init model
             self._from_pretrained(config.inferencer.get("from_pretrained"))
 
     def run_inference(self):
-        """
-        Run inference on each partition.
-
-        Returns:
-            part_logs (dict): part_logs[part_name] contains logs
-                for the part_name partition.
-        """
         part_logs = {}
         for part, dataloader in self.evaluation_dataloaders.items():
             logs = self._inference_part(part, dataloader)
@@ -95,88 +59,42 @@ class Inferencer(BaseTrainer):
         return part_logs
 
     def process_batch(self, batch_idx, batch, metrics, part):
-        """
-        Run batch through the model, compute metrics, and
-        save predictions to disk.
-
-        Save directory is defined by save_path in the inference
-        config and current partition.
-
-        Args:
-            batch_idx (int): the index of the current batch.
-            batch (dict): dict-based batch containing the data from
-                the dataloader.
-            metrics (MetricTracker): MetricTracker object that computes
-                and aggregates the metrics. The metrics depend on the type
-                of the partition (train or inference).
-            part (str): name of the partition. Used to define proper saving
-                directory.
-        Returns:
-            batch (dict): dict-based batch containing the data from
-                the dataloader (possibly transformed via batch transform)
-                and model outputs.
-        """
         batch = self.move_batch_to_device(batch)
-        batch = self.transform_batch(batch)  # transform batch on device -- faster
+        batch = self.transform_batch(batch)
 
         outputs = self.model(**batch)
         batch.update(outputs)
 
-        if metrics is not None:
+        if metrics is not None and "gt" in batch:
             for met in self.metrics["inference"]:
                 metrics.update(met.name, met(**batch))
 
-        # Some saving logic. This is an example
-        # Use if you need to save predictions on disk
+        reconstruction = crop_roi(batch["reconstruction"]).clamp(0, 1)
+        for i in range(reconstruction.shape[0]):
+            image = reconstruction[i].permute(1, 2, 0).cpu().numpy()
+            image = (image * 255).astype(np.uint8)
+            Image.fromarray(image).save(self.save_path / f"{batch['id'][i]}.png")
 
-        batch_size = batch["logits"].shape[0]
-        current_id = batch_idx * batch_size
-
-        for i in range(batch_size):
-            # clone because of
-            # https://github.com/pytorch/pytorch/issues/1995
-            logits = batch["logits"][i].clone()
-            label = batch["labels"][i].clone()
-            pred_label = logits.argmax(dim=-1)
-
-            output_id = current_id + i
-
-            output = {
-                "pred_label": pred_label,
-                "label": label,
-            }
-
-            if self.save_path is not None:
-                # you can use safetensors or other lib here
-                torch.save(output, self.save_path / part / f"output_{output_id}.pth")
+        if self.writer is not None and batch_idx == 0:
+            self._log_predictions(batch)
 
         return batch
 
     def _inference_part(self, part, dataloader):
-        """
-        Run inference on a given partition and save predictions
-
-        Args:
-            part (str): name of the partition.
-            dataloader (DataLoader): dataloader for the given partition.
-        Returns:
-            logs (dict): metrics, calculated on the partition.
-        """
-
         self.is_train = False
         self.model.eval()
 
-        self.evaluation_metrics.reset()
+        if self.evaluation_metrics is not None:
+            self.evaluation_metrics.reset()
 
-        # create Save dir
-        if self.save_path is not None:
-            (self.save_path / part).mkdir(exist_ok=True, parents=True)
+        self.save_path.mkdir(exist_ok=True, parents=True)
+
+        if self.writer is not None:
+            self.writer.set_step(0, mode=part)
 
         with torch.no_grad():
             for batch_idx, batch in tqdm(
-                enumerate(dataloader),
-                desc=part,
-                total=len(dataloader),
+                enumerate(dataloader), desc=part, total=len(dataloader)
             ):
                 batch = self.process_batch(
                     batch_idx=batch_idx,
@@ -185,4 +103,37 @@ class Inferencer(BaseTrainer):
                     metrics=self.evaluation_metrics,
                 )
 
-        return self.evaluation_metrics.result()
+        if self.evaluation_metrics is None:
+            return {}
+
+        result = self.evaluation_metrics.result()
+        if self.writer is not None:
+            for name, value in result.items():
+                self.writer.add_scalar(name, value)
+        return result
+
+    def _log_predictions(self, batch, n_examples=4):
+        n_examples = min(n_examples, batch["measurement"].shape[0])
+
+        reconstruction = crop_roi(batch["reconstruction"]).clamp(0, 1)
+        measurement = batch["measurement"]
+        measurement = measurement / (
+            measurement.amax(dim=(-3, -2, -1), keepdim=True) + 1e-6
+        )
+        gt = crop_roi(batch["gt"]).clamp(0, 1) if "gt" in batch else None
+
+        for i in range(n_examples):
+            sample_id = batch["id"][i]
+            self.writer.add_image(
+                f"measurement/{sample_id}", self._to_image(measurement[i])
+            )
+            self.writer.add_image(
+                f"reconstruction/{sample_id}", self._to_image(reconstruction[i])
+            )
+            if gt is not None:
+                self.writer.add_image(f"gt/{sample_id}", self._to_image(gt[i]))
+
+    @staticmethod
+    def _to_image(tensor):
+        array = tensor.detach().clamp(0, 1).permute(1, 2, 0).cpu().numpy()
+        return (array * 255).astype("uint8")

@@ -1,13 +1,14 @@
 defaults:
-  - model: baseline
-  - metrics: example
-  - datasets: example_eval # we do not want to run inference on training data
-  - dataloader: example
-  - transforms: example
+  - model: modular_pre_post
+  - metrics: lensless
+  - datasets: digicam_eval
+  - dataloader: lensless
+  - transforms: empty
+  - writer: cometml
   - _self_
 inferencer:
-  device_tensors: ["data_object", "labels"] # which tensors should be on device (ex. GPU)
-  device: auto # device name or "auto"
-  save_path: "example" # any name here, can be a dataset name
+  device_tensors: ["measurement", "psf", "gt"]
+  device: auto
+  save_path: "reconstructions"
   seed: 1
-  from_pretrained: "saved/model_best.pth" # path to the pretrained model
+  from_pretrained: "saved/modular_pre_post/model_best.pth"
