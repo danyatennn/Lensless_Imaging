@@ -1,149 +1,206 @@
-# PyTorch Template for DL projects
+# Lensless Computational Imaging
 
-<p align="center">
-  <a href="#about">About</a> •
-  <a href="#tutorials">Tutorials</a> •
-  <a href="#examples">Examples</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#how-to-use">How To Use</a> •
-  <a href="#useful-links">Useful Links</a> •
-  <a href="#credits">Credits</a> •
-  <a href="#license">License</a>
-</p>
+Reconstruction of images from lensless camera measurements. This
+repository reproduces and compares reconstruction
+algorithms on the
+[DigiCam-Mirflickr-MultiMask-10K](https://huggingface.co/datasets/bezzam/DigiCam-Mirflickr-MultiMask-10K)
+dataset base on these articles:
 
-<p align="center">
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/LICENSE">
-   <img src=https://img.shields.io/badge/license-MIT-blue.svg>
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/CITATION.cff">
-   <img src="https://img.shields.io/badge/cite-this%20repo-purple">
-</a>
-</p>
+- [Towards Robust and Generalizable Lensless Imaging with Modular Learned Reconstruction](https://arxiv.org/abs/2502.01102)
+- [Learned reconstructions for practical mask-based lensless imaging](https://arxiv.org/abs/1908.11502)
 
-## About
+The project is built on the
+[PyTorch Project Template](https://github.com/Blinorot/pytorch_project_template).
 
-This repository contains a template for [PyTorch](https://pytorch.org/)-based Deep Learning projects.
+## Contents
 
-The template utilizes different python-dev techniques to improve code readability. Configuration methods enhance reproducibility and experiments control.
+- [Methods](#methods)
+- [Installation](#installation)
+- [Dataset](#dataset)
+- [Training](#training)
+- [Inference and metrics](#inference-and-metrics)
+- [Reconstruction speed](#reconstruction-speed)
+- [Checkpoints](#checkpoints)
+- [Demo](#demo)
 
-The repository is released as a part of the [HSE DLA course](https://github.com/markovka17/dla), however, can easily be adopted for any DL-task.
 
-This template is the official recommended template for the [EPFL CS-433 ML Course](https://www.epfl.ch/labs/mlo/machine-learning-cs-433/).
+## Methods
 
-**New:** we added a [HF Main](https://github.com/Blinorot/pytorch_project_template/tree/hf_main) variant of the template with [HuggingFace](https://huggingface.co/) Integration for multi-GPU and multi-node training, automatic mixed precision, gradient accumulation, and seamless HuggingFace Ecosystem Compatibility.
+| Config | Pre | Inversion | Post | Trainable params |
+|---|---|---|---|---|
+| [`admm100`](src/configs/model/admm100.yaml) | – | ADMM, 100 iters, fixed `mu=1e-4, tau=2e-4` | – | 0 |
+| [`unrolled_admm20`](src/configs/model/unrolled_admm20.yaml) | – | Unrolled ADMM, 20 iters, learnable | – | 80 |
+| [`modular_pre_post`](src/configs/model/modular_pre_post.yaml) | DRUNet 4.1M | Unrolled ADMM, 5 iters | DRUNet 4.1M | ~8.1M |
+| [`modular_pre`](src/configs/model/modular_pre.yaml) | DRUNet 8.2M | Unrolled ADMM, 5 iters | – | ~8.2M |
+| [`modular_post`](src/configs/model/modular_post.yaml) | – | Unrolled ADMM, 5 iters | DRUNet 8.2M | ~8.2M |
 
-> 📖 **If you use this template in your work, please cite this repository or include a reference. Attribution supports the project and encourages continued development.**
+- Training loss is `MSE + LPIPS (VGG)` computed on the region of interest (ROI)
+- Metrics are PSNR, SSIM, LPIPS (VGG), and MSE also computed on the ROI
 
-## Tutorials
+### Bonus methods
 
-This template utilizes experiment tracking techniques, such as [WandB](https://docs.wandb.ai/) and [Comet ML](https://www.comet.com/docs/v2/), and [Hydra](https://hydra.cc/docs/intro/) for the configuration. It also automatically reformats code and conducts several checks via [pre-commit](https://pre-commit.com/). If you are not familiar with these tools, we advise you to look at the tutorials below:
-
-- [Python Dev Tips](https://github.com/ebezzam/python-dev-tips): information about [Git](https://git-scm.com/doc), [pre-commit](https://pre-commit.com/), [Hydra](https://hydra.cc/docs/intro/), and other stuff for better Python code development. The YouTube recording of the workshop is available [here](https://youtu.be/okxaTuBdDuY).
-
-- [Seminar on R&D Coding 2025](https://youtu.be/PE1zaW5it_A): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with discussion on logging, project-based coding, configuration, and reproducibility. The materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/tree/summer25/day05).
-
-- [Seminar on R&D Coding 2024](https://youtu.be/sEA-Js5ZHxU): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with template discussion and reasoning. It also explains how to work with [WandB](https://docs.wandb.ai/). The seminar materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/blob/main/day03/Seminar_WandB_and_Coding.ipynb).
-
-- [HSE DLA Course Introduction Week](https://github.com/markovka17/dla/tree/2024/week01): combines the two seminars above into one with some updates, including an extra example for [Comet ML](https://www.comet.com/docs/v2/).
-
-- [PyTorch Basics](https://github.com/markovka17/dla/tree/2024/week01/intro_to_pytorch): several notebooks with [PyTorch](https://pytorch.org/docs/stable/index.html) basics and corresponding seminar recordings from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/).
-
-To start working with a template, just click on the `use this template` button.
-
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-
-You can choose any of the branches as a starting point. [Set your choice as the default branch](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/changing-the-default-branch) in the repository settings. You can also [delete unnecessary branches](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-and-deleting-branches-within-your-repository).
-
-## Examples
-
-> [!IMPORTANT]
-> The main branch leaves some of the code parts empty or fills them with dummy examples, showing just the base structure. The final users can add code required for their own tasks.
-
-You can find examples of this template completed for different tasks in other branches:
-
-- [HF Main](https://github.com/Blinorot/pytorch_project_template/tree/hf_main): the variant of the `main` branch with [HuggingFace](https://huggingface.co/) Integration. Supports multi-GPU and multi-node training, automatic mixed precision, gradient accumulation, and seamless HuggingFace Ecosystem Compatibility.
-
-- [Image classification](https://github.com/Blinorot/pytorch_project_template/tree/example/image-classification): simple classification problem on [MNIST](https://yann.lecun.com/exdb/mnist/) and [CIFAR-10](https://www.cs.toronto.edu/~kriz/cifar.html) datasets.
-
-- [ASR](https://github.com/Blinorot/pytorch_project_template/tree/example/asr): template for the automatic speech recognition (ASR) task. Some of the parts (for example, `collate_fn` and beam search for `text_encoder`) are missing for studying purposes of [HSE DLA course](https://github.com/markovka17/dla).
+| Config | Description | Trainable params |
+|---|---|---|
+| [`fista`](src/configs/model/fista.yaml) | FISTA, 100 iters, fixed (non-ADMM solver) | 0 |
+| [`fista_unrolled`](src/configs/model/fista_unrolled.yaml) | Unrolled FISTA, 20 iters, learnable | 40 |
+| [`admm100_realesrgan`](src/configs/model/admm100_realesrgan.yaml) | ADMM-100 + frozen pretrained Real-ESRGAN | 0 |
+| [`admm100_realesrgan_ft`](src/configs/model/admm100_realesrgan_ft.yaml) | ADMM-100 + fine-tuned Real-ESRGAN | 16.7M |
 
 ## Installation
 
-Installation may depend on your task. The general steps are the following:
-
-0. (Optional) Create and activate new environment using [`conda`](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) or `venv` ([`+pyenv`](https://github.com/pyenv/pyenv)).
-
-   a. `conda` version:
-
-   ```bash
-   # create env
-   conda create -n project_env python=PYTHON_VERSION
-
-   # activate env
-   conda activate project_env
-   ```
-
-   b. `venv` (`+pyenv`) version:
-
-   ```bash
-   # create env
-   ~/.pyenv/versions/PYTHON_VERSION/bin/python3 -m venv project_env
-
-   # alternatively, using default python version
-   python3 -m venv project_env
-
-   # activate env
-   source project_env/bin/activate
-   ```
-
-1. Install all required packages
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Install `pre-commit`:
-   ```bash
-   pre-commit install
-   ```
-
-## How To Use
-
-To train a model, run the following command:
-
 ```bash
-python3 train.py -cn=CONFIG_NAME HYDRA_CONFIG_ARGUMENTS
+# (optional) create an environment
+python3 -m venv project_env
+source project_env/bin/activate
+
+# install dependencies
+pip install -r requirements.txt
+
+# (optional) install pre-commit hooks
+pre-commit install
 ```
 
-Where `CONFIG_NAME` is a config from `src/configs` and `HYDRA_CONFIG_ARGUMENTS` are optional arguments.
+The device is chosen automatically: CUDA if available, then MPS, then CPU
 
-To run inference (evaluate the model or save predictions):
+## Dataset
+
+The training and evaluation data are the `train` and `test` splits of
+[DigiCam-Mirflickr-MultiMask-10K](https://huggingface.co/datasets/bezzam/DigiCam-Mirflickr-MultiMask-10K).
+The dataset is downloaded automatically on first use
+
+PSFs are stored as mask patterns and simulated from the masks (with
+waveprop)
+
+## Training
 
 ```bash
-python3 inference.py HYDRA_CONFIG_ARGUMENTS
+python3 train.py -cn=lensless model=MODEL writer.run_name=RUN_NAME
 ```
 
-## Useful Links:
+`MODEL` is one of `unrolled_admm20`, `modular_pre_post`, `modular_pre`,
+`modular_post` (the `admm100` baseline is parameter-free and is only used for
+inference). Examples:
 
-You may find the following links useful:
+```bash
+python3 train.py -cn=lensless model=unrolled_admm20  writer.run_name=unrolled_admm20
+python3 train.py -cn=lensless model=modular_pre_post writer.run_name=modular_pre_post
+python3 train.py -cn=lensless model=modular_pre      writer.run_name=modular_pre
+python3 train.py -cn=lensless model=modular_post     writer.run_name=modular_post
+```
 
-- [Report branch](https://github.com/Blinorot/pytorch_project_template/tree/report): Guidelines for writing a scientific report/paper (with an emphasis on DL projects).
+Bonus learnable models (see [Bonus methods](#bonus-methods)):
 
-- [CLAIRE Template](https://github.com/CLAIRE-Labo/python-ml-research-template): additional template by [EPFL CLAIRE Laboratory](https://www.epfl.ch/labs/claire/) that can be combined with ours to enhance experiments reproducibility via [Docker](https://www.docker.com/).
+```bash
+# unrolled FISTA (non-ADMM solver)
+python3 train.py -cn=lensless model=fista_unrolled writer.run_name=fista_unrolled
 
-- [Mamba](https://github.com/mamba-org/mamba) and [Poetry](https://python-poetry.org/): alternatives to [Conda](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) and [pip](https://pip.pypa.io/en/stable/installation/) package managers given above.
+# fine-tune Real-ESRGAN on top of fixed ADMM-100
+python3 train.py -cn=lensless model=admm100_realesrgan_ft \
+    optimizer.lr=1e-5 trainer.n_epochs=10 dataloader.batch_size=2 \
+    writer.run_name=realesrgan_ft
+```
 
-- [Awesome README](https://github.com/matiassingers/awesome-readme): a list of awesome README files for inspiration. Check the basics [here](https://github.com/PurpleBooth/a-good-readme-template).
+- `trainer.n_epochs=N` — number of epochs (default 25)
+- `dataloader.batch_size=B` — (default 4)
+- `datasets.test.limit=K` — number of test images used for per-epoch
 
-## Credits
+Metrics, losses, learning rate, and reconstruction examples are logged every
+`trainer.log_step` steps and after every epoch. Checkpoints are saved every
+`trainer.save_period` epochs and the best one (by `test_PSNR`) is saved as
+`saved/RUN_NAME/model_best.pth`
 
-This repository is based on a heavily modified fork of [pytorch-template](https://github.com/victoresque/pytorch-template) and [asr_project_template](https://github.com/WrathOfGrapes/asr_project_template) repositories.
+Logging requires a Comet ML API key (set the `COMET_API_KEY` environment)
 
-## License
+## Inference and metrics
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
+Run a trained model on a dataset and save the reconstructions:
+
+```bash
+python3 inference.py \
+    model=modular_pre_post \
+    inferencer.from_pretrained=saved/modular_pre_post/model_best.pth \
+    inferencer.save_path=data/saved/modular_pre_post
+```
+
+For the classic ADMM-100 baseline there is no checkpoint:
+
+```bash
+python3 inference.py \
+    model=admm100 \
+    inferencer.from_pretrained=null \
+    inferencer.save_path=data/saved/admm100
+```
+
+Bonus methods. FISTA and the frozen ADMM-100 + Real-ESRGAN have no checkpoint
+the fine-tuned Real-ESRGAN:
+
+```bash
+python3 inference.py model=fista inferencer.from_pretrained=null \
+    inferencer.save_path=data/saved/fista
+python3 inference.py model=admm100_realesrgan inferencer.from_pretrained=null \
+    inferencer.save_path=data/saved/admm100_realesrgan
+python3 inference.py model=admm100_realesrgan_ft \
+    inferencer.from_pretrained=saved/realesrgan_ft/model_best.pth \
+    inferencer.save_path=data/saved/realesrgan_ft
+```
+
+Run on a custom directory (see [Demo](#demo)):
+
+```bash
+python3 inference.py \
+    model=modular_pre_post \
+    inferencer.from_pretrained=saved/modular_pre_post/model_best.pth \
+    datasets=custom_dir datasets.test.data_dir=/path/to/data \
+    inferencer.save_path=/path/to/reconstructions
+```
+
+Reconstructions are saved as `ID.png` (the ROI) matching the input image id.
+
+Inference logging to Comet ML is automatic but optional: if the `COMET_API_KEY`
+is set, the final metrics and reconstruction examples
+are logged to Comet ML
+
+```bash
+export COMET_API_KEY=your_key
+python3 inference.py model=modular_pre_post \
+    inferencer.from_pretrained=saved/modular_pre_post/model_best.pth \
+    inferencer.save_path=data/saved/modular_pre_post writer.run_name=modular_pre_post
+```
+
+Compute metrics between ground-truth and reconstructed images:
+
+```bash
+python3 calculate_metrics.py \
+    --ground_truth /path/to/data \
+    --reconstructions /path/to/reconstructions
+```
+
+The `--ground_truth` argument is a directory of images or a data
+directory containing a `lensed/` subdir. It prints metrics
+
+## Reconstruction speed
+
+```bash
+python3 measure_speed.py model=admm100
+python3 measure_speed.py model=modular_pre_post
+```
+
+It prints and logges the average reconstruction time
+
+## Checkpoints
+
+Final checkpoints are hosted on Google Drive. They are already set in
+[`download_checkpoints.py`](download_checkpoints.py):
+
+```bash
+python3 download_checkpoints.py --model all
+```
+
+Checkpoints are saved to `saved/<model>/model_best.pth`.
+
+## Demo
+
+[`demo.ipynb`](demo.ipynb) clones the repository, installs dependencies, downloads the
+checkpoints, runs inference on a custom `.zip` dataset (Google Drive
+link), visualizes samples, and computes the metrics
+
