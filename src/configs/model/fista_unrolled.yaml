@@ -1,0 +1,9 @@
+_target_: src.model.ModularReconstruction
+normalize: true
+camera_inversion:
+  _target_: src.model.FISTA
+  n_iters: 20
+  learnable: true
+  tau: 2e-4
+  n_inner: 5
+  pad_factor: 2
